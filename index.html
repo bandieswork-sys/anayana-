@@ -69,6 +69,7 @@ body::before {
   margin: 0;
 }
 button { font: inherit; color: inherit; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
 .btn {
@@ -102,6 +103,14 @@ h1 { font: 700 clamp(36px, 9vw, 60px)/0.98 var(--display); letter-spacing: -0.03
 .left-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
 .left-foot .status { flex-basis: 100%; font: 400 12.5px var(--mono); color: var(--muted); }
 #copybox { width: 100%; min-height: 150px; font: 400 12.5px/1.5 var(--mono); }
+.sync { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.sync[hidden] { display: none; }
+.sync-title { margin: 0; font: 700 16px/1.2 var(--display); }
+.sync-copy { margin: 0; color: var(--muted); font-size: 12.5px; }
+.sync-form { display: grid; gap: 8px; }
+.sync-form input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--ink); font: 13px var(--body); }
+.sync-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.sync-error { margin: 0; color: var(--accent); font-size: 12px; }
 
 /* Calendar */
 .cal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
@@ -308,6 +317,19 @@ textarea { resize: vertical; min-height: 84px; }
       <section id="arc" aria-label="Archive" hidden></section>
     </div>
     <div class="left-foot">
+      <div class="sync" id="sync-panel">
+        <p class="sync-title">Sync across devices</p>
+        <p class="sync-copy" id="sync-copy">Create an account to use the same plan on your phone and Mac.</p>
+        <form class="sync-form" id="sync-form">
+          <label class="sr-only" for="sync-email">Email</label>
+          <input id="sync-email" type="email" autocomplete="email" placeholder="Email address" required>
+          <label class="sr-only" for="sync-password">Password</label>
+          <input id="sync-password" type="password" autocomplete="current-password" placeholder="Password (6+ characters)" minlength="6" required>
+          <div class="sync-actions"><button class="btn primary" type="submit">Sign in</button><button class="btn" id="sync-signup" type="button">Create account</button></div>
+          <p class="sync-error" id="sync-error" role="alert" hidden></p>
+        </form>
+        <button class="btn" id="sync-signout" type="button" hidden>Sign out</button>
+      </div>
       <span class="status" id="status" aria-live="polite">Progress saves as you tick</span>
       <button class="btn" id="copy" type="button">Copy progress</button>
       <button class="btn" id="reset" type="button">Reset everything</button>
@@ -321,6 +343,7 @@ textarea { resize: vertical; min-height: 84px; }
   </section>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function () {
   "use strict";
@@ -517,6 +540,11 @@ textarea { resize: vertical; min-height: 84px; }
 
   /* ---------- Saving ---------- */
   var ref = null, inflight = false, pending = false, saveT = 0;
+  var supabase = window.supabase.createClient("https://szpwqpxnnmrtptwfwbof.supabase.co", "sb_publishable_sTJdBZcvinYNaMopIQW_FA_RqpvbDr6");
+  var syncPanel = document.getElementById("sync-panel"), syncForm = document.getElementById("sync-form"), syncEmail = document.getElementById("sync-email"), syncPassword = document.getElementById("sync-password"), syncSignup = document.getElementById("sync-signup"), syncSignout = document.getElementById("sync-signout"), syncCopy = document.getElementById("sync-copy"), syncError = document.getElementById("sync-error");
+  function syncMessage(t) { syncError.hidden = !t; syncError.textContent = t || ""; }
+  function showSignedIn(email) { syncForm.hidden = true; syncSignup.hidden = true; syncSignout.hidden = false; syncCopy.textContent = "Synced as " + email + ". Your phone and Mac share this progress."; }
+  function showSignedOut() { syncForm.hidden = false; syncSignup.hidden = false; syncSignout.hidden = true; syncCopy.textContent = "Create an account to use the same plan on your phone and Mac."; }
   var statusEl = document.getElementById("status");
   function setStatus(t) { statusEl.textContent = t; }
 
@@ -527,46 +555,47 @@ textarea { resize: vertical; min-height: 84px; }
     clearTimeout(saveT);
     saveT = setTimeout(pushRemote, 800);
   }
-  function pushRemote() {
+  async function pushRemote() {
     if (!ref) return;
     if (inflight) { pending = true; return; }
     inflight = true;
-    ref.set(serialize()).then(function () {
-      setStatus("Saved to your account");
-    }, function () {
-      setStatus("Saved on this device");
-    }).then(function () {
-      inflight = false;
-      if (pending) { pending = false; pushRemote(); }
+    var result = await supabase.from("restart_plan_progress").upsert({ user_id: ref, data: serialize(), updated_at: new Date(state.updated).toISOString() });
+    setStatus(result.error ? "Saved on this device" : "Saved to your account");
+    inflight = false;
+    if (pending) { pending = false; pushRemote(); }
+  }
+  async function loadRemote(user) {
+    ref = user.id;
+    var result = await supabase.from("restart_plan_progress").select("data,updated_at").eq("user_id", user.id).maybeSingle();
+    if (result.data && result.data.data) {
+      var remote = fromRemote(result.data.data), remoteTime = new Date(result.data.updated_at || 0).getTime();
+      remote.updated = remoteTime;
+      if (remoteTime > (state.updated || 0)) { state = remote; persistLocal(); renderAll(); }
+      else if ((state.updated || 0) > remoteTime) pushRemote();
+    } else if (state.updated) pushRemote();
+    setStatus(result.error ? "Saved on this device" : "Saved to your account");
+  }
+  async function initRemote() {
+    var sessionResult = await supabase.auth.getSession();
+    var user = sessionResult.data.session && sessionResult.data.session.user;
+    if (user) { showSignedIn(user.email); await loadRemote(user); } else showSignedOut();
+    supabase.auth.onAuthStateChange(function (event, nextSession) {
+      if (nextSession && nextSession.user) { showSignedIn(nextSession.user.email); loadRemote(nextSession.user); }
+      else { ref = null; showSignedOut(); setStatus("Saved on this device"); }
     });
   }
-  function initRemote() {
-    if (!window.claude || !window.claude.use) return;
-    Promise.all([window.claude.use("user"), window.claude.use("db")]).then(function (r) {
-      var user = r[0], db = r[1];
-      if (!user || !db) return;
-      return Promise.resolve(user.id()).then(function (uid) {
-        if (!uid) return;
-        var doc = db.doc("data/users/" + uid + "/progress");
-        return doc.get().then(function (snap) {
-          ref = doc;
-          if (snap.exists) {
-            var d = snap.data() || {};
-            if ((d.updated || 0) > (state.updated || 0)) {
-              state = fromRemote(d);
-              persistLocal();
-              renderAll();
-            } else if ((state.updated || 0) > (d.updated || 0)) {
-              pushRemote();
-            }
-          } else if (state.updated) {
-            pushRemote();
-          }
-          setStatus("Saved to your account");
-        });
-      });
-    }).catch(function () {});
-  }
+  syncForm.addEventListener("submit", async function (e) {
+    e.preventDefault(); syncMessage("");
+    var result = await supabase.auth.signInWithPassword({ email: syncEmail.value.trim(), password: syncPassword.value });
+    if (result.error) syncMessage("Sign in failed. Check your email and password.");
+  });
+  syncSignup.addEventListener("click", async function () {
+    syncMessage("");
+    var result = await supabase.auth.signUp({ email: syncEmail.value.trim(), password: syncPassword.value });
+    if (result.error) syncMessage(result.error.message.toLowerCase().indexOf("password") >= 0 ? "Use a password with at least 6 characters." : "Could not create the account. Check your details.");
+    else if (!result.data.session) syncMessage("Check your email to confirm the account, then sign in here.");
+  });
+  syncSignout.addEventListener("click", function () { supabase.auth.signOut(); });
 
   /* ---------- Rendering ---------- */
   var calEl = document.getElementById("cal");
