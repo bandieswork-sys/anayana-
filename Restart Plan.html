@@ -443,7 +443,7 @@ textarea { resize: vertical; min-height: 84px; }
     for (var i = 0; i < PHASES.length; i++) if (d <= PHASES[i].to) return PHASES[i].line;
     return PHASES[PHASES.length - 1].line;
   }
-  function dateOf(d) { return new Date(2026, 10, 9 + d - 1); }
+  function dateOf(d) { return new Date(START.getFullYear(), START.getMonth(), START.getDate() + d - 1); }
   function fmtDate(dt) { return dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); }
 
   var blockCache = {};
