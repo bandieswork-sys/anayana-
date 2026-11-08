@@ -357,7 +357,7 @@ textarea { resize: vertical; min-height: 84px; }
   "use strict";
 
   var KEY = "restart15.v1";
-  var START = new Date(2026, 10, 8);
+  var START = new Date(2026, 10, 9);
   var DAYS = 54;
 
   /* ---------- Plan data ---------- */
@@ -442,8 +442,8 @@ textarea { resize: vertical; min-height: 84px; }
     { m: 90, f: "Add project 4 to the portfolio.", st: ["Open your portfolio.", "Add project 4 with its images and text.", "Check it on your phone."], h: "Match the other projects." },
     { m: 90, f: "Refresh the home page with your best work.", st: ["Choose the strongest three pieces.", "Update the home page tiles.", "Check it on your phone."], h: "Lead with your best." },
     { m: 90, f: "Check everything on phone and laptop.", st: ["Click every link.", "Read every line of text once.", "Fix what is broken or unclear."], h: "A careful final pass." },
-    { m: 90, f: "Collect what you made.", st: ["Open every file you exported since 8 November.", "Pick the 5 pieces you are proudest of.", "Put them together on one board."], h: "Look at how much you made." },
-    { m: 90, f: "Close the year and plan the next.", st: ["Look at the board from yesterday.", "Write down three things you built since 8 November.", "Write your first three goals for January."], h: "You started on 8 November. Look at what you did." }
+    { m: 90, f: "Collect what you made.", st: ["Open every file you exported since 9 November.", "Pick the 5 pieces you are proudest of.", "Put them together on one board."], h: "Look at how much you made." },
+    { m: 90, f: "Close the year and plan the next.", st: ["Look at the board from yesterday.", "Write down three things you built since 9 November.", "Write your first three goals for January."], h: "You started on 8 November. Look at what you did." }
   ];
   var PLANNED_MIN = WORK.reduce(function (a, w) { return a + w.m; }, 0);
 
@@ -474,7 +474,7 @@ textarea { resize: vertical; min-height: 84px; }
     for (var i = 0; i < PHASES.length; i++) if (d <= PHASES[i].to) return PHASES[i].line;
     return PHASES[PHASES.length - 1].line;
   }
-  function dateOf(d) { return new Date(2026, 10, 8 + d - 1); }
+  function dateOf(d) { return new Date(START.getFullYear(), START.getMonth(), START.getDate() + d - 1); }
   function fmtDate(dt) { return dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); }
 
   var blockCache = {};
