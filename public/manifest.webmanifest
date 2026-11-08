@@ -2,6 +2,7 @@
   "name": "Restart Plan",
   "short_name": "Restart Plan",
   "description": "A calm daily plan that keeps your progress with you.",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
